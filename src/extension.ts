@@ -214,35 +214,35 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(command);
   });
 
-  // 监听文件打开事件，拦截xlog文件的打开操作
-  const handleTextDocumentOpen = async (document: vscode.TextDocument) => {
-    // 检查是否是xlog文件
-    if (document.uri.scheme === 'file' && isXlogFile(document.uri.fsPath)) {
-      // 关闭当前文档
-      const activeEditor = vscode.window.activeTextEditor;
-      if (activeEditor &&
-          activeEditor.document.uri.toString() === document.uri.toString()) {
-        await vscode.commands.executeCommand(
-            'workbench.action.closeActiveEditor');
-      }
+  // 注册一个自定义编辑器提供程序，拦截所有.xlog文件的打开请求
+  const xlogEditorProvider = new XlogEditorProvider(context);
+  context.subscriptions.push(vscode.window.registerCustomEditorProvider(
+      'vscode-xlog.xlogEditor', xlogEditorProvider, {
+        // 设置为高优先级，确保我们的自定义编辑器会被首先调用
+        webviewOptions: {retainContextWhenHidden: true},
+        supportsMultipleEditorsPerDocument: false
+      }));
 
-      // 显示通知并直接开始解码
-      vscode.window.showInformationMessage('检测到 Xlog 文件，正在自动解码...');
+  // 注册文件系统监听，当检测到.xlog文件时自动重定向
+  const fileSystemWatcher =
+      vscode.workspace.createFileSystemWatcher('**/*.xlog');
+  context.subscriptions.push(fileSystemWatcher);
 
-      // 直接调用解码命令，不再询问
-      vscode.commands.executeCommand('vscode-xlog.decodeFile', document.uri);
-    }
-  };
-
-  const textDocumentOpenHandler =
-      vscode.workspace.onDidOpenTextDocument(handleTextDocumentOpen);
-  context.subscriptions.push(textDocumentOpenHandler);
+  fileSystemWatcher.onDidCreate(uri => {
+    outputChannel.appendLine(`检测到新的xlog文件: ${uri.fsPath}`);
+  });
 
   // 立即检查当前打开的文档
   if (vscode.window.activeTextEditor) {
     const document = vscode.window.activeTextEditor.document;
     if (document.uri.scheme === 'file' && isXlogFile(document.uri.fsPath)) {
-      handleTextDocumentOpen(document);
+      // 关闭当前编辑器
+      vscode.commands.executeCommand('workbench.action.closeActiveEditor')
+          .then(() => {
+            // 解码文件
+            vscode.commands.executeCommand(
+                'vscode-xlog.decodeFile', document.uri);
+          });
     }
   }
 }
@@ -255,6 +255,119 @@ class XlogContentProvider implements vscode.TextDocumentContentProvider {
 
   provideTextDocumentContent(_uri: vscode.Uri): string {
     return '正在解码 Xlog 文件，请稍候...';
+  }
+}
+
+/**
+ * Xlog自定义编辑器提供程序
+ * 用于拦截xlog文件的打开并替换为我们的解码流程
+ */
+class XlogEditorProvider implements vscode.CustomReadonlyEditorProvider {
+  constructor(private context: vscode.ExtensionContext) {}
+
+  // 当VSCode尝试打开xlog文件时，会调用此方法
+  async openCustomDocument(
+      uri: vscode.Uri, _openContext: vscode.CustomDocumentOpenContext,
+      _token: vscode.CancellationToken): Promise<vscode.CustomDocument> {
+    // 创建一个自定义文档对象
+    return {uri, dispose: () => {}};
+  }
+
+  // 当需要解析编辑器内容时调用
+  async resolveCustomEditor(
+      document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel,
+      _token: vscode.CancellationToken): Promise<void> {
+    // 在webview中显示加载消息
+    webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
+
+    // 设置标题
+    webviewPanel.title = '解码 Xlog 文件中...';
+
+    // 不再立即关闭webview，而是在执行解码后隐藏它
+    // webviewPanel.dispose();
+
+    // 执行解码，不需要延迟了
+    try {
+      const result = await vscode.commands.executeCommand(
+          'vscode-xlog.decodeFile', document.uri);
+
+      // 解码完成后才关闭webview
+      setTimeout(() => {
+        try {
+          // 安全地检查webview是否可以关闭
+          if (webviewPanel) {
+            webviewPanel.dispose();
+          }
+        } catch (e) {
+          // 忽略可能的错误
+        }
+      }, 500);
+    } catch (error) {
+      // 如果解码失败，更新webview显示错误信息
+      try {
+        // 安全地更新webview内容
+        if (webviewPanel) {
+          webviewPanel.webview.html = this.getErrorHtml(String(error));
+        }
+      } catch (e) {
+        // 忽略可能的错误
+      }
+    }
+  }
+
+  // 生成webview的HTML内容
+  private getHtmlForWebview(_webview: vscode.Webview): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="zh-CN">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>解码 Xlog</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 20px; }
+          .container { text-align: center; max-width: 500px; margin: 0 auto; }
+          .spinner { display: inline-block; width: 50px; height: 50px; border: 3px solid rgba(0,0,0,.3); border-radius: 50%; border-top-color: #00b4cf; animation: spin 1s ease-in-out infinite; }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>正在解码 Xlog 文件...</h2>
+          <div class="spinner"></div>
+          <p>请稍候，解码完成后将自动打开结果文件。</p>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  // 生成错误信息HTML
+  private getErrorHtml(errorMessage: string): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="zh-CN">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>解码失败</title>
+        <style>
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 20px; }
+          .container { text-align: center; max-width: 500px; margin: 0 auto; }
+          .error { color: #e74c3c; background-color: #fceaea; padding: 10px; border-radius: 4px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>解码 Xlog 文件失败</h2>
+          <div class="error">
+            <p>${errorMessage}</p>
+          </div>
+          <p>请检查文件格式或联系技术支持。</p>
+        </div>
+      </body>
+      </html>
+    `;
   }
 }
 

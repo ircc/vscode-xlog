@@ -39,6 +39,18 @@
                 "title": "显示 Xlog 解码工具信息"
             }
         ],
+        "customEditors": [
+            {
+                "viewType": "vscode-xlog.xlogEditor",
+                "displayName": "Xlog 解码器",
+                "selector": [
+                    {
+                        "filenamePattern": "*.xlog"
+                    }
+                ],
+                "priority": "option"
+            }
+        ],
         "menus": {
             "explorer/context": [
                 {
