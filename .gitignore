@@ -1,0 +1,5 @@
+# 输出目录
+out/
+
+# 依赖目录
+node_modules/
