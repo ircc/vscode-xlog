@@ -189,6 +189,16 @@ import {isXlogFile} from './services/xlog-decoder';
  * @param context 扩展上下文
  */
 export function activate(context: vscode.ExtensionContext) {
+  // 创建输出通道，用于记录解码过程
+  const outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
+  context.subscriptions.push(outputChannel);
+
+  // 注册虚拟文档内容提供器
+  const xlogContentProvider = new XlogContentProvider(outputChannel);
+  const registration = vscode.workspace.registerTextDocumentContentProvider(
+      'xlog-preview', xlogContentProvider);
+  context.subscriptions.push(registration);
+
   // 注册命令
   const commands = [
     vscode.commands.registerCommand(
@@ -204,36 +214,48 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(command);
   });
 
-  // 监听 xlog 文件打开事件
-  const fileOpenHandler =
-      vscode.workspace.onDidOpenTextDocument(async (document) => {
-        if (isXlogFile(document.uri.fsPath)) {
-          const result = await vscode.window.showInformationMessage(
-              '检测到 Xlog 文件，是否要解码?', '是', '否');
+  // 监听文件打开事件，拦截xlog文件的打开操作
+  const handleTextDocumentOpen = async (document: vscode.TextDocument) => {
+    // 检查是否是xlog文件
+    if (document.uri.scheme === 'file' && isXlogFile(document.uri.fsPath)) {
+      // 关闭当前文档
+      const activeEditor = vscode.window.activeTextEditor;
+      if (activeEditor &&
+          activeEditor.document.uri.toString() === document.uri.toString()) {
+        await vscode.commands.executeCommand(
+            'workbench.action.closeActiveEditor');
+      }
 
-          if (result === '是') {
-            vscode.commands.executeCommand(
-                'vscode-xlog.decodeFile', document.uri);
-          }
-        }
-      });
+      // 显示通知并直接开始解码
+      vscode.window.showInformationMessage('检测到 Xlog 文件，正在自动解码...');
+
+      // 直接调用解码命令，不再询问
+      vscode.commands.executeCommand('vscode-xlog.decodeFile', document.uri);
+    }
+  };
+
+  const textDocumentOpenHandler =
+      vscode.workspace.onDidOpenTextDocument(handleTextDocumentOpen);
+  context.subscriptions.push(textDocumentOpenHandler);
 
   // 立即检查当前打开的文档
   if (vscode.window.activeTextEditor) {
     const document = vscode.window.activeTextEditor.document;
-    if (isXlogFile(document.uri.fsPath)) {
-      vscode.window
-          .showInformationMessage('检测到 Xlog 文件，是否要解码?', '是', '否')
-          .then(result => {
-            if (result === '是') {
-              vscode.commands.executeCommand(
-                  'vscode-xlog.decodeFile', document.uri);
-            }
-          });
+    if (document.uri.scheme === 'file' && isXlogFile(document.uri.fsPath)) {
+      handleTextDocumentOpen(document);
     }
   }
+}
 
-  context.subscriptions.push(fileOpenHandler);
+/**
+ * Xlog文件内容提供器
+ */
+class XlogContentProvider implements vscode.TextDocumentContentProvider {
+  constructor(private outputChannel: vscode.OutputChannel) {}
+
+  provideTextDocumentContent(_uri: vscode.Uri): string {
+    return '正在解码 Xlog 文件，请稍候...';
+  }
 }
 
 /**
