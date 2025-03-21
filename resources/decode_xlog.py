@@ -11,6 +11,24 @@ import struct
 import binascii
 import zlib
 
+# Python 2和3兼容性处理
+if sys.version_info[0] < 3:
+    reload(sys)
+    sys.setdefaultencoding('utf-8')
+    try:
+        from __builtin__ import unicode
+    except ImportError:
+        # 如果无法导入，创建一个基本实现
+        unicode = str
+
+# 增加递归限制以避免堆栈溢出
+sys.setrecursionlimit(3000)  # 默认为1000
+
+try:
+    import __builtin__  # Python 2
+except ImportError:
+    __builtin__ = None  # Python 3
+
 # Mars Xlog 魔数常量定义
 MAGIC_NO_COMPRESS_START = 0x03
 MAGIC_NO_COMPRESS_START1 = 0x06
@@ -35,11 +53,17 @@ def print_utf8(text):
             print(text)
         else:
             # Python 2 兼容处理
-            print(text.encode('utf-8'))
+            if isinstance(text, unicode):
+                print(text.encode('utf-8'))
+            else:
+                print(text)
     except UnicodeEncodeError:
         # 遇到编码错误时，尝试用ASCII编码输出，替换不可打印字符
         try:
-            print(text.encode('ascii', 'replace').decode('ascii'))
+            if sys.version_info[0] >= 3:
+                print(text.encode('ascii', 'replace').decode('ascii'))
+            else:
+                print(text.encode('ascii', 'replace'))
         except:
             # 如果还是失败，使用英文替代消息
             print("Message contains characters that cannot be displayed")
@@ -81,46 +105,55 @@ def buffer(data, offset, length):
             return data[offset:offset+length]
         return memoryview(data)[offset:offset+length]
     else:
-        return buffer(data, offset, length)
+        # 修复递归调用问题
+        # 原代码: return buffer(data, offset, length) 会导致无限递归
+        # 在Python 2中使用旧的buffer函数
+        return __builtin__.buffer(data, offset, length)
 
 def is_good_log_buffer(_buffer, _offset, count):
     """验证日志数据块是否有效"""
-    if _offset == len(_buffer):
-        return (True, '')
+    current_offset = _offset
+    remaining_count = count
 
-    magic_start = _buffer[_offset]
-    if MAGIC_NO_COMPRESS_START == magic_start or MAGIC_COMPRESS_START == magic_start or MAGIC_COMPRESS_START1 == magic_start:
-        crypt_key_len = 4
-    elif (MAGIC_COMPRESS_START2 == magic_start or MAGIC_NO_COMPRESS_START1 == magic_start or
-          MAGIC_NO_COMPRESS_NO_CRYPT_START == magic_start or MAGIC_COMPRESS_NO_CRYPT_START == magic_start or
-          MAGIC_SYNC_ZSTD_START == magic_start or MAGIC_SYNC_NO_CRYPT_ZSTD_START == magic_start or
-          MAGIC_ASYNC_ZSTD_START == magic_start or MAGIC_ASYNC_NO_CRYPT_ZSTD_START == magic_start):
-        crypt_key_len = 64
-    else:
-        return (False, '_buffer[%d]:%d != MAGIC_NUM_START' % (_offset, _buffer[_offset]))
+    while True:
+        if current_offset == len(_buffer):
+            return (True, '')
 
-    header_len = 1 + 2 + 1 + 1 + 4 + crypt_key_len
+        magic_start = _buffer[current_offset]
+        if MAGIC_NO_COMPRESS_START == magic_start or MAGIC_COMPRESS_START == magic_start or MAGIC_COMPRESS_START1 == magic_start:
+            crypt_key_len = 4
+        elif (MAGIC_COMPRESS_START2 == magic_start or MAGIC_NO_COMPRESS_START1 == magic_start or
+            MAGIC_NO_COMPRESS_NO_CRYPT_START == magic_start or MAGIC_COMPRESS_NO_CRYPT_START == magic_start or
+            MAGIC_SYNC_ZSTD_START == magic_start or MAGIC_SYNC_NO_CRYPT_ZSTD_START == magic_start or
+            MAGIC_ASYNC_ZSTD_START == magic_start or MAGIC_ASYNC_NO_CRYPT_ZSTD_START == magic_start):
+            crypt_key_len = 64
+        else:
+            return (False, '_buffer[%d]:%d != MAGIC_NUM_START' % (current_offset, _buffer[current_offset]))
 
-    if _offset + header_len + 1 + 1 > len(_buffer):
-        return (False, 'offset:%d > len(buffer):%d' % (_offset, len(_buffer)))
+        header_len = 1 + 2 + 1 + 1 + 4 + crypt_key_len
 
-    if sys.version_info[0] >= 3:
-        length = struct.unpack("I", _buffer[_offset+header_len-4-crypt_key_len:_offset+header_len-crypt_key_len])[0]
-    else:
-        length = struct.unpack_from("I", buffer(_buffer, _offset+header_len-4-crypt_key_len, 4))[0]
+        if current_offset + header_len + 1 + 1 > len(_buffer):
+            return (False, 'offset:%d > len(buffer):%d' % (current_offset, len(_buffer)))
 
-    if _offset + header_len + length + 1 > len(_buffer):
-        return (False, 'log length:%d, end pos %d > len(buffer):%d' %
-                (length, _offset + header_len + length + 1, len(_buffer)))
+        if sys.version_info[0] >= 3:
+            length = struct.unpack("I", _buffer[current_offset+header_len-4-crypt_key_len:current_offset+header_len-crypt_key_len])[0]
+        else:
+            length = struct.unpack_from("I", buffer(_buffer, current_offset+header_len-4-crypt_key_len, 4))[0]
 
-    if MAGIC_END != _buffer[_offset + header_len + length]:
-        return (False, 'log length:%d, buffer[%d]:%d != MAGIC_END' %
-                (length, _offset + header_len + length, _buffer[_offset + header_len + length]))
+        if current_offset + header_len + length + 1 > len(_buffer):
+            return (False, 'log length:%d, end pos %d > len(buffer):%d' %
+                    (length, current_offset + header_len + length + 1, len(_buffer)))
 
-    if (1 >= count):
-        return (True, '')
-    else:
-        return is_good_log_buffer(_buffer, _offset+header_len+length+1, count-1)
+        if MAGIC_END != _buffer[current_offset + header_len + length]:
+            return (False, 'log length:%d, buffer[%d]:%d != MAGIC_END' %
+                    (length, current_offset + header_len + length, _buffer[current_offset + header_len + length]))
+
+        # 递减计数器并更新当前偏移量
+        remaining_count -= 1
+        if remaining_count <= 0:
+            return (True, '')
+
+        current_offset = current_offset + header_len + length + 1
 
 def get_log_start_pos(_buffer, _count):
     """获取日志起始位置"""
@@ -365,34 +398,39 @@ def process_directory(directory_path):
 def main():
     """主函数"""
     try:
+        # 打印版本信息
+        print_utf8("Xlog decoder - Python version: " + str(sys.version_info[0]) + "." + str(sys.version_info[1]))
+
         if len(sys.argv) < 2:
             print_utf8("Please provide xlog file path or directory path")
-            sys.exit(1)
+            return 1
 
-        path = sys.argv[1]
-        print_utf8("Processing: " + path)
-
-        if not os.path.exists(path):
-            print_utf8("Error: The specified path does not exist: " + path)
-            sys.exit(1)
-
-        is_directory = os.path.isdir(path)
-
-        if is_directory:
-            processed_files = process_directory(path)
-            print_utf8("Successfully processed " + str(len(processed_files)) + " files")
-            for file in processed_files:
-                print_utf8("- " + file)
-        else:
-            output_file = decode_xlog(path)
+        file_path = sys.argv[1]
+        if os.path.isfile(file_path):
+            output_file = decode_xlog(file_path)
             if output_file:
-                print_utf8("Successfully decoded: " + output_file)
+                print_utf8("Successfully decoded to: " + output_file)
+                return 0
             else:
                 print_utf8("Failed to decode file")
-                sys.exit(1)
+                return 1
+        elif os.path.isdir(file_path):
+            processed_files = process_directory(file_path)
+            if processed_files:
+                for file in processed_files:
+                    print_utf8("- " + file)
+                print_utf8("Successfully processed %d files" % len(processed_files))
+                return 0
+            else:
+                print_utf8("No files were processed")
+                return 1
+        else:
+            print_utf8("Path not exists: " + file_path)
+            return 1
     except Exception as e:
         print_utf8("Error: " + str(e))
-        sys.exit(1)
+        traceback.print_exc()
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
