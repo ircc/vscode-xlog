@@ -101,6 +101,7 @@ export function runPythonScript(scriptPath: string, args: string[]): Promise<str
 import {decodeXlogFileCommand} from './commands/decode-file';
 import {decodeXlogDirectoryCommand} from './commands/decode-directory';
 import {showXlogDecodeInfoCommand} from './commands/show-info';
+import {deleteDecodedFilesCommand} from './commands/delete-decoded-files';
 import {isXlogFile} from './services/xlog-decoder';
 
 // 导出工具函数，供其他模块使用
@@ -130,7 +131,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand(
         'vscode-xlog.decodeDirectory', decodeXlogDirectoryCommand),
     vscode.commands.registerCommand(
-        'vscode-xlog.showInfo', showXlogDecodeInfoCommand)
+        'vscode-xlog.showInfo', showXlogDecodeInfoCommand),
+    vscode.commands.registerCommand(
+        'vscode-xlog.deleteDecodedFiles', deleteDecodedFilesCommand)
   ];
 
   // 注册命令到上下文

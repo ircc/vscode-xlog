@@ -38,6 +38,10 @@
             {
                 "command": "vscode-xlog.showInfo",
                 "title": "显示 Xlog 解码工具信息"
+            },
+            {
+                "command": "vscode-xlog.deleteDecodedFiles",
+                "title": "删除目录下所有已解码日志文件"
             }
         ],
         "customEditors": [
@@ -65,6 +69,11 @@
                 {
                     "when": "explorerResourceIsFolder",
                     "command": "vscode-xlog.decodeDirectory",
+                    "group": "navigation"
+                },
+                {
+                    "when": "explorerResourceIsFolder",
+                    "command": "vscode-xlog.deleteDecodedFiles",
                     "group": "navigation"
                 }
             ],
