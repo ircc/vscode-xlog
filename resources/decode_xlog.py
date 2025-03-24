@@ -377,8 +377,8 @@ def decode_xlog(file_path):
 
     try:
         base_name = os.path.basename(file_path)
-        file_name_without_ext = os.path.splitext(base_name)[0]
-        output_file = os.path.join(os.path.dirname(file_path), file_name_without_ext + "_.log")
+        # 保留原文件的后缀+_.log
+        output_file = os.path.join(os.path.dirname(file_path), base_name + "_.log")
 
         # 检查文件是否为Mars Xlog格式
         if is_mars_xlog_v2(file_path) or is_mars_xlog_v3(file_path):
