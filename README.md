@@ -69,31 +69,3 @@ C:\Python27\python.exe
 ## 贡献
 
 欢迎提交问题报告和功能建议到 [GitHub 仓库](https://github.com/ircc/vscode-xlog)。
-
-## 发布流程
-
-本项目使用GitHub Actions自动构建和发布新版本。发布新版本的步骤：
-
-1. 在Windows上运行：
-   ```
-   create-release.bat x.y.z
-   ```
-
-   在Linux/Mac上运行：
-   ```
-   ./create-release.sh x.y.z
-   ```
-
-   其中x.y.z是新的版本号（例如1.0.0）
-
-2. 推送提交和标签：
-   ```
-   git push && git push --tags
-   ```
-
-3. GitHub Actions将自动构建并发布扩展到GitHub Releases页面
-4. 从Releases页面下载.vsix文件，可以通过VSCode的"从VSIX安装"选项安装扩展
-
-## 许可证
-
-MIT
