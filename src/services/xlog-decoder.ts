@@ -12,14 +12,10 @@ export async function decodeXlogFile(filePath: string): Promise<string> {
   const pythonScriptPath =
       path.join(__dirname, '../../resources/decode_xlog.py');
 
-  try {
-    const output = await runPythonScript(pythonScriptPath, [filePath]);
-    // 尝试从输出中获取生成的文件路径
-    const match = output.match(/[Ss]uccessfully decoded: (.*)/);
-    return match ? match[1] : '';
-  } catch (error) {
-    throw error;
-  }
+  const output = await runPythonScript(pythonScriptPath, [filePath]);
+  // 尝试从输出中获取生成的文件路径
+  const match = output.match(/[Ss]uccessfully decoded: (.*)/);
+  return match ? match[1] : '';
 }
 
 /**
@@ -31,20 +27,16 @@ export async function decodeXlogDirectory(dirPath: string): Promise<string[]> {
   const pythonScriptPath =
       path.join(__dirname, '../../resources/decode_xlog.py');
 
-  try {
-    const output = await runPythonScript(pythonScriptPath, [dirPath]);
-    // 解析输出中的文件列表
-    const files: string[] = [];
-    const lines = output.split('\n');
-    for (const line of lines) {
-      if (line.startsWith('- ')) {
-        files.push(line.substring(2).trim());
-      }
+  const output = await runPythonScript(pythonScriptPath, [dirPath]);
+  // 解析输出中的文件列表
+  const files: string[] = [];
+  const lines = output.split('\n');
+  for (const line of lines) {
+    if (line.startsWith('- ')) {
+      files.push(line.substring(2).trim());
     }
-    return files;
-  } catch (error) {
-    throw error;
   }
+  return files;
 }
 
 /**

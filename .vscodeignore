@@ -1,0 +1,15 @@
+.vscode/**
+.github/**
+.git/**
+.gitignore
+node_modules/**
+out/**/*.map
+src/**
+**/tsconfig.json
+**/.eslintrc.json
+**/*.ts
+**/*.vsix
+.yarnrc
+webpack.config.js
+create-release.sh
+create-release.bat

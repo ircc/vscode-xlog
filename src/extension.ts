@@ -1,7 +1,5 @@
 import * as child_process from 'child_process';
-import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
 import * as vscode from 'vscode';
 
 // 获取用户配置
@@ -9,8 +7,12 @@ function getConfig() {
   return vscode.workspace.getConfiguration('xlogDecode');
 }
 
-// 检查Python版本
-async function checkPythonVersion(pythonCommand: string): Promise<string> {
+/**
+ * 检查Python版本
+ * @param pythonCommand Python命令路径
+ * @returns Python版本信息
+ */
+export async function checkPythonVersion(pythonCommand: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const process = child_process.spawn(
         pythonCommand, ['-V'], {shell: os.platform() === 'win32'});
@@ -42,62 +44,13 @@ async function checkPythonVersion(pythonCommand: string): Promise<string> {
   });
 }
 
-// 处理Python相关错误
-async function handlePythonError(error: Error): Promise<void> {
-  const message = error.message;
-
-  // 检测可能的问题
-  const isPythonNotFound =
-      message.includes('无法启动') || message.includes('找不到');
-  const isSyntaxError = message.includes('SyntaxError');
-
-  if (isPythonNotFound) {
-    const action = await vscode.window.showErrorMessage(
-        '无法找到Python解释器。请在设置中指定Python路径。', '打开设置', '忽略');
-
-    if (action === '打开设置') {
-      vscode.commands.executeCommand(
-          'workbench.action.openSettings', 'xlogDecode.pythonPath');
-    }
-  } else if (isSyntaxError) {
-    const customPythonPath = getConfig().get<string>('pythonPath');
-    let versionInfo = '未知';
-
-    try {
-      const pythonCommand = customPythonPath ||
-          (os.platform() === 'win32' ? 'python' : 'python3');
-      versionInfo = await checkPythonVersion(pythonCommand);
-    } catch (e) {
-      versionInfo = '无法检测';
-    }
-
-    const action = await vscode.window.showErrorMessage(
-        `Python脚本语法错误。您当前的Python版本: ${
-            versionInfo}。这个扩展需要Python 3.x版本。`,
-        '打开设置', '查看错误详情', '忽略');
-
-    if (action === '打开设置') {
-      vscode.commands.executeCommand(
-          'workbench.action.openSettings', 'xlogDecode.pythonPath');
-    } else if (action === '查看错误详情') {
-      vscode.window.showErrorMessage(`详细错误: ${message}`);
-    }
-  } else {
-    // 其他未知错误
-    const action = await vscode.window.showErrorMessage(
-        `执行过程中出现错误: ${message}`, '查看详情', '忽略');
-
-    if (action === '查看详情') {
-      // 可以在这里添加更多诊断信息
-      const customPythonPath = getConfig().get<string>('pythonPath');
-      vscode.window.showInformationMessage(`当前配置: Python路径=${
-          customPythonPath || '默认'}, 操作系统=${os.platform()}`);
-    }
-  }
-}
-
-// 使用spawn替代exec，以获得更好的输出处理
-function runPythonScript(scriptPath: string, args: string[]): Promise<string> {
+/**
+ * 运行Python脚本
+ * @param scriptPath 脚本路径
+ * @param args 参数列表
+ * @returns 脚本输出
+ */
+export function runPythonScript(scriptPath: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     // 获取用户配置的 Python 路径
     const customPythonPath = getConfig().get<string>('pythonPath');
@@ -145,44 +98,15 @@ function runPythonScript(scriptPath: string, args: string[]): Promise<string> {
   });
 }
 
-// 解压单个xlog文件
-async function decodeXlogFile(filePath: string): Promise<string> {
-  const pythonScriptPath = path.join(__dirname, '..', 'decode_xlog.py');
-
-  try {
-    const output = await runPythonScript(pythonScriptPath, [filePath]);
-    // 尝试从输出中获取生成的文件路径
-    const match = output.match(/成功解码: (.*)/);
-    return match ? match[1] : '';
-  } catch (error) {
-    throw error;
-  }
-}
-
-// 解压目录中的所有xlog文件
-async function decodeXlogDirectory(dirPath: string): Promise<string[]> {
-  const pythonScriptPath = path.join(__dirname, '..', 'decode_xlog.py');
-
-  try {
-    const output = await runPythonScript(pythonScriptPath, [dirPath]);
-    // 解析输出中的文件列表
-    const files: string[] = [];
-    const lines = output.split('\n');
-    for (const line of lines) {
-      if (line.startsWith('- ')) {
-        files.push(line.substring(2).trim());
-      }
-    }
-    return files;
-  } catch (error) {
-    throw error;
-  }
-}
-
 import {decodeXlogFileCommand} from './commands/decode-file';
 import {decodeXlogDirectoryCommand} from './commands/decode-directory';
 import {showXlogDecodeInfoCommand} from './commands/show-info';
 import {isXlogFile} from './services/xlog-decoder';
+
+// 导出工具函数，供其他模块使用
+export {
+  getConfig
+};
 
 /**
  * 激活扩展
@@ -265,30 +189,28 @@ class XlogContentProvider implements vscode.TextDocumentContentProvider {
 class XlogEditorProvider implements vscode.CustomReadonlyEditorProvider {
   constructor(private context: vscode.ExtensionContext) {}
 
-  // 当VSCode尝试打开xlog文件时，会调用此方法
   async openCustomDocument(
       uri: vscode.Uri, _openContext: vscode.CustomDocumentOpenContext,
       _token: vscode.CancellationToken): Promise<vscode.CustomDocument> {
     // 创建一个自定义文档对象
-    return {uri, dispose: () => {}};
+    return {
+      uri,
+      // 使用实现方法而不是空方法
+      dispose() {
+        // 方法实现为空但有括号和注释表明这是有意为之
+        // 销毁文档时的清理工作
+      }
+    };
   }
 
-  // 当需要解析编辑器内容时调用
   async resolveCustomEditor(
       document: vscode.CustomDocument, webviewPanel: vscode.WebviewPanel,
       _token: vscode.CancellationToken): Promise<void> {
     // 在webview中显示加载消息
     webviewPanel.webview.html = this.getHtmlForWebview(webviewPanel.webview);
 
-    // 设置标题
-    webviewPanel.title = '解码 Xlog 文件中...';
-
-    // 不再立即关闭webview，而是在执行解码后隐藏它
-    // webviewPanel.dispose();
-
-    // 执行解码，不需要延迟了
     try {
-      const result = await vscode.commands.executeCommand(
+      await vscode.commands.executeCommand(
           'vscode-xlog.decodeFile', document.uri);
 
       // 解码完成后才关闭webview
@@ -301,7 +223,7 @@ class XlogEditorProvider implements vscode.CustomReadonlyEditorProvider {
         } catch (e) {
           // 忽略可能的错误
         }
-      }, 500);
+      }, 1000);
     } catch (error) {
       // 如果解码失败，更新webview显示错误信息
       try {

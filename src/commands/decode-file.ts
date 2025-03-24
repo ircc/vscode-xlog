@@ -40,7 +40,7 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
     }
 
     // 创建输出通道
-    let outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
+    const outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
 
     // 显示解码进度
     outputChannel.clear();
@@ -113,7 +113,7 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
       await handlePythonError(error);
 
       // 记录详细错误信息到输出通道
-      let outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
+      const outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
       outputChannel.appendLine(`解码错误: ${error.message}`);
       outputChannel.appendLine(`堆栈: ${error.stack || '无堆栈信息'}`);
       outputChannel.show(true);
