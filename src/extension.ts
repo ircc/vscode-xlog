@@ -149,11 +149,11 @@ export function activate(context: vscode.ExtensionContext) {
 
   // 注册文件系统监听，当检测到.xlog文件时自动重定向
   const fileSystemWatcher =
-      vscode.workspace.createFileSystemWatcher('**/*.xlog');
+      vscode.workspace.createFileSystemWatcher('**/*.{xlog,mmap3}');
   context.subscriptions.push(fileSystemWatcher);
 
   fileSystemWatcher.onDidCreate(uri => {
-    outputChannel.appendLine(`检测到新的xlog文件: ${uri.fsPath}`);
+    outputChannel.appendLine(`检测到新的日志文件: ${uri.fsPath}`);
   });
 
   // 立即检查当前打开的文档

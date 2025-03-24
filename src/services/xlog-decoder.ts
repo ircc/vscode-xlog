@@ -45,18 +45,14 @@ export async function decodeXlogDirectory(dirPath: string): Promise<string[]> {
  * @returns 是否为Xlog文件
  */
 export function isXlogFile(filePath: string): boolean {
-  // 先检查文件扩展名
-  if (!filePath.toLowerCase().endsWith('.xlog')) {
-    return false;
-  }
-
-  // 检查文件是否存在
+  // 先检查文件是否存在
   if (!fs.existsSync(filePath)) {
     return false;
   }
 
-  // 返回true，实际文件格式会在解码时进一步验证
-  return true;
+  // 获取文件扩展名（转换为小写）
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === '.xlog' || ext === '.mmap3';
 }
 
 /**

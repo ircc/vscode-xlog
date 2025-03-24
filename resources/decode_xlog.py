@@ -162,18 +162,25 @@ def get_log_start_pos(_buffer, _count):
         if offset >= len(_buffer):
             break
 
+        # 检查所有可能的魔数
         magic_values = [MAGIC_NO_COMPRESS_START, MAGIC_NO_COMPRESS_START1, MAGIC_COMPRESS_START,
                       MAGIC_COMPRESS_START1, MAGIC_COMPRESS_START2, MAGIC_NO_COMPRESS_NO_CRYPT_START,
                       MAGIC_COMPRESS_NO_CRYPT_START, MAGIC_SYNC_ZSTD_START,
                       MAGIC_SYNC_NO_CRYPT_ZSTD_START, MAGIC_ASYNC_ZSTD_START,
                       MAGIC_ASYNC_NO_CRYPT_ZSTD_START]
 
+        # 如果找到任何魔数，尝试解析
         if _buffer[offset] in magic_values:
-            if is_good_log_buffer(_buffer, offset, _count)[0]:
-                return offset
+            # 尝试解析，即使失败也继续搜索
+            try:
+                if is_good_log_buffer(_buffer, offset, _count)[0]:
+                    return offset
+            except:
+                pass
         offset += 1
 
-    return -1
+    # 如果没有找到有效的起始位置，尝试从文件开头开始解析
+    return 0
 
 def decode_buffer(_buffer, _offset, _outbuffer):
     """解码单个日志缓冲区"""
@@ -282,17 +289,41 @@ def parse_mars_xlog_file(file_path, output_file):
         _buffer = bytearray(os.path.getsize(file_path))
         fp.readinto(_buffer)
 
-    startpos = get_log_start_pos(_buffer, 2)
-    if -1 == startpos:
-        print_utf8("No valid log data found in file")
-        return None
+    # 尝试从不同位置开始解析
+    start_positions = [0]
+    for i in range(len(_buffer)):
+        if i > 0 and _buffer[i] in [MAGIC_NO_COMPRESS_START, MAGIC_NO_COMPRESS_START1,
+                                  MAGIC_COMPRESS_START, MAGIC_COMPRESS_START1,
+                                  MAGIC_COMPRESS_START2, MAGIC_NO_COMPRESS_NO_CRYPT_START,
+                                  MAGIC_COMPRESS_NO_CRYPT_START, MAGIC_SYNC_ZSTD_START,
+                                  MAGIC_SYNC_NO_CRYPT_ZSTD_START, MAGIC_ASYNC_ZSTD_START,
+                                  MAGIC_ASYNC_NO_CRYPT_ZSTD_START]:
+            start_positions.append(i)
 
     outbuffer = bytearray()
+    success = False
 
-    while True:
-        startpos = decode_buffer(_buffer, startpos, outbuffer)
-        if -1 == startpos:
-            break
+    # 尝试从每个可能的起始位置解析
+    for startpos in start_positions:
+        try:
+            current_pos = startpos
+            temp_buffer = bytearray()
+
+            while True:
+                current_pos = decode_buffer(_buffer, current_pos, temp_buffer)
+                if current_pos == -1:
+                    break
+
+            if len(temp_buffer) > 0:
+                outbuffer = temp_buffer
+                success = True
+                break
+        except:
+            continue
+
+    if not success:
+        print_utf8("No valid log data found in file")
+        return None
 
     if 0 == len(outbuffer):
         print_utf8("No valid log content decoded")
@@ -384,7 +415,9 @@ def process_directory(directory_path):
     processed_files = []
     for root, _, files in os.walk(directory_path):
         for file in files:
-            if file.endswith('.xlog'):
+            # 获取文件扩展名并转换为小写进行比较
+            ext = os.path.splitext(file)[1].lower()
+            if ext in ['.xlog', '.mmap3']:
                 file_path = os.path.join(root, file)
                 try:
                     print_utf8("Processing file: " + file_path)

@@ -29,7 +29,7 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
 
     // 验证文件类型
     if (!isXlogFile(filePath)) {
-      vscode.window.showErrorMessage('请选择 Xlog 文件');
+      vscode.window.showErrorMessage('请选择 Xlog 或 Mmap3 文件');
       return;
     }
 

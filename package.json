@@ -21,7 +21,8 @@
         "onCommand:vscode-xlog.showInfo",
         "onLanguage:xlog",
         "onFileSystem:file",
-        "workspaceContains:**/*.xlog"
+        "workspaceContains:**/*.xlog",
+        "workspaceContains:**/*.mmap3"
     ],
     "main": "./out/extension.js",
     "contributes": {
@@ -46,6 +47,9 @@
                 "selector": [
                     {
                         "filenamePattern": "*.xlog"
+                    },
+                    {
+                        "filenamePattern": "*.mmap3"
                     }
                 ],
                 "priority": "option"
@@ -54,7 +58,7 @@
         "menus": {
             "explorer/context": [
                 {
-                    "when": "resourceExtname == .xlog",
+                    "when": "resourceExtname =~ /\\.(xlog|mmap3)$/",
                     "command": "vscode-xlog.decodeFile",
                     "group": "navigation"
                 },
@@ -66,7 +70,7 @@
             ],
             "editor/title/context": [
                 {
-                    "when": "resourceExtname == .xlog",
+                    "when": "resourceExtname =~ /\\.(xlog|mmap3)$/",
                     "command": "vscode-xlog.decodeFile",
                     "group": "navigation"
                 }
@@ -76,7 +80,8 @@
             {
                 "id": "xlog",
                 "extensions": [
-                    ".xlog"
+                    ".xlog",
+                    ".mmap3"
                 ]
             }
         ],
