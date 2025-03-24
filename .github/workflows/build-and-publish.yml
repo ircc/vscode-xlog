@@ -1,58 +1,86 @@
-name: Build and Publish Extension
+name: 构建和发布扩展
 
+# 触发条件配置
 on:
   push:
     branches:
-      - master
-      - main
+      - master   # 当推送到master分支时触发
+      - main     # 当推送到main分支时触发
     tags:
-      - 'v*'
-  workflow_dispatch:  # 允许手动触发
+      - 'v*'     # 当推送以v开头的标签时触发（如v1.0.0）
+  workflow_dispatch:  # 允许在GitHub界面手动触发工作流
 
+# 工作流任务定义
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 使用Ubuntu最新版作为运行环境
 
     steps:
+      # 第1步：检出代码
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3  # 使用官方的checkout动作v3版本
 
+      # 第2步：设置Node.js环境
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v3  # 使用官方的setup-node动作v3版本
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '20'  # 使用Node.js 20版本
+          cache: 'npm'        # 启用npm依赖缓存，加速构建
 
+      # 第3步：安装项目依赖
       - name: Install dependencies
-        run: npm ci
+        run: npm ci  # 使用ci命令，根据package-lock.json安装精确版本的依赖
 
+      # 第4步：运行代码检查
       - name: Lint
         run: npm run lint
-        continue-on-error: true
+        continue-on-error: true  # 即使Lint失败也继续执行工作流
 
+      # 第5步：编译TypeScript代码
       - name: Compile
         run: npm run compile
 
+      # 第6步：获取package.json中的版本号
+      - name: Get Package Version
+        id: package_version  # 设置步骤ID，用于后续引用
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      # 第7步：打包VSCode扩展
       - name: Package Extension
-        id: package-extension
+        id: package-extension  # 设置步骤ID，用于后续引用
         run: |
-          npm install -g @vscode/vsce
-          vsce package
-          echo "vsix_path=$(ls *.vsix)" >> $GITHUB_OUTPUT
-          echo "vsix_name=$(ls *.vsix)" >> $GITHUB_OUTPUT
+          npm install -g @vscode/vsce  # 安装vsce工具
+          vsce package                 # 打包扩展为.vsix文件
+          echo "vsix_path=$(ls *.vsix)" >> $GITHUB_OUTPUT  # 记录.vsix文件路径
+          echo "vsix_name=$(ls *.vsix)" >> $GITHUB_OUTPUT  # 记录.vsix文件名
 
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      # 第8步：创建标签发布（仅在推送标签时执行）
+      - name: Create Tag Release
+        id: create_tag_release
+        uses: softprops/action-gh-release@v1  # 使用第三方GitHub Release动作
+        if: startsWith(github.ref, 'refs/tags/')  # 条件：当前推送是标签
         with:
-          files: ${{ steps.package-extension.outputs.vsix_path }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
+          files: ${{ steps.package-extension.outputs.vsix_path }}  # 上传.vsix文件
+          draft: false        # 非草稿模式
+          prerelease: false  # 非预发布模式
+          generate_release_notes: true  # 自动生成发布说明
 
+      # 第9步：创建分支发布（仅在推送到主分支且非标签时执行）
+      - name: Create Branch Release
+        id: create_branch_release
+        uses: softprops/action-gh-release@v1  # 使用第三方GitHub Release动作
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') }}  # 条件：推送到主分支且非标签
+        with:
+          files: ${{ steps.package-extension.outputs.vsix_path }}  # 上传.vsix文件
+          tag_name: v${{ steps.package_version.outputs.version }}-${{ github.run_number }}  # 自动生成标签名
+          name: 版本 v${{ steps.package_version.outputs.version }}-${{ github.run_number }} (自动构建)  # 发布标题
+          draft: false       # 非草稿模式
+          prerelease: true  # 标记为预发布
+          generate_release_notes: true  # 自动生成发布说明
+
+      # 第10步：上传构建产物作为工作流产物（方便下载和调试）
       - name: Upload Artifact
-        uses: actions/upload-artifact@main
+        uses: actions/upload-artifact@main  # 使用官方的upload-artifact动作
         with:
-          name: extension-package
-          path: ${{ steps.package-extension.outputs.vsix_path }}
+          name: extension-package  # 产物名称
+          path: ${{ steps.package-extension.outputs.vsix_path }}  # 产物路径（.vsix文件）
