@@ -1,0 +1,58 @@
+name: Build and Publish Extension
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Compile
+        run: npm run compile
+
+      - name: Package Extension
+        id: package-extension
+        run: |
+          npm install -g @vscode/vsce
+          vsce package
+          echo "vsix_path=$(ls *.vsix)" >> $GITHUB_OUTPUT
+          echo "vsix_name=$(ls *.vsix)" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: ${{ steps.package-extension.outputs.vsix_path }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@main
+        with:
+          name: extension-package
+          path: ${{ steps.package-extension.outputs.vsix_path }}
