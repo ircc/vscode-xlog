@@ -72,9 +72,15 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
               if (autoOpen) {
                 outputChannel.appendLine('在VSCode中打开文件...');
                 try {
-                  const openDocument =
-                      await vscode.workspace.openTextDocument(outputFile);
-                  await vscode.window.showTextDocument(openDocument);
+                  // 如果文件大于50MB，直接使用vscode打开而不是通过扩展API
+                  if (fileSizeInMB > 50) {
+                    outputChannel.appendLine(`文件大小超过50MB，使用VSCode直接打开`);
+                    await vscode.env.openExternal(vscode.Uri.file(outputFile));
+                  } else {
+                    const openDocument =
+                        await vscode.workspace.openTextDocument(outputFile);
+                    await vscode.window.showTextDocument(openDocument);
+                  }
                 } catch (err) {
                   // 如果VSCode无法打开文件，提供备选方案
                   outputChannel.appendLine(`VSCode无法直接打开文件: ${err}`);
