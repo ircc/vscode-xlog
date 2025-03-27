@@ -47,6 +47,9 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
     outputChannel.appendLine(`开始解码: ${filePath}`);
     outputChannel.show(true);
 
+    // 记录开始时间
+    const startTime = Date.now();
+
     // 显示处理进度
     return await vscode.window.withProgress(
         {
@@ -63,9 +66,12 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
               // 检查文件大小
               const stats = fs.statSync(outputFile);
               const fileSizeInMB = stats.size / (1024 * 1024);
+              const endTime = Date.now();
+              const duration = (endTime - startTime) / 1000; // 转换为秒
 
               outputChannel.appendLine(
                   `解码成功: ${outputFile} (${fileSizeInMB.toFixed(2)}MB)`);
+              outputChannel.appendLine(`解码耗时: ${duration.toFixed(2)}秒`);
 
               // 检查用户是否配置了自动打开文件
               const autoOpen = getAutoOpenDecodedFile();

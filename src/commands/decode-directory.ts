@@ -42,6 +42,9 @@ export async function decodeXlogDirectoryCommand(dirUri?: vscode.Uri):
     outputChannel.appendLine(`开始解码目录: ${dirPath}`);
     outputChannel.show(true);
 
+    // 记录开始时间
+    const startTime = Date.now();
+
     // 显示处理进度
     await vscode.window.withProgress(
         {
@@ -58,10 +61,14 @@ export async function decodeXlogDirectoryCommand(dirUri?: vscode.Uri):
             const existingFiles =
                 outputFiles.filter(file => fs.existsSync(file));
 
+            // 计算总耗时
+            const endTime = Date.now();
+            const duration = (endTime - startTime) / 1000; // 转换为秒
+
             // 显示解码结果
             vscode.window.showInformationMessage(
                 `解码完成: 共解码 ${outputFiles.length} 个文件，` +
-                `${existingFiles.length} 个成功`);
+                `${existingFiles.length} 个成功，耗时 ${duration.toFixed(2)}秒`);
 
             // 记录所有解码文件
             outputChannel.appendLine('解码成功的文件:');
@@ -71,6 +78,7 @@ export async function decodeXlogDirectoryCommand(dirUri?: vscode.Uri):
               outputChannel.appendLine(
                   `- ${file} (${fileSizeInMB.toFixed(2)}MB)`);
             });
+            outputChannel.appendLine(`总耗时: ${duration.toFixed(2)}秒`);
 
             // 检查用户是否配置了自动打开文件
             const autoOpen = getAutoOpenDecodedFile();
