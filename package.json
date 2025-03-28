@@ -102,6 +102,11 @@
                     "default": "",
                     "description": "Python 解释器路径。留空则使用系统默认的 python 命令。"
                 },
+                "vscode-xlog.rxdPath": {
+                    "type": "string",
+                    "default": "",
+                    "description": "rxd 可执行文件路径。留空则使用插件自带的rxd解码器。"
+                },
                 "vscode-xlog.autoOpenDecodedFile": {
                     "type": "boolean",
                     "default": true,
@@ -115,7 +120,9 @@
         "lint": "eslint src --ext ts || true",
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
-        "test": "node ./out/test/runTest.js"
+        "test": "node ./out/test/runTest.js",
+        "download-rxd": "node scripts/download-rxd.js",
+        "postinstall": "npm run download-rxd"
     },
     "devDependencies": {
         "@types/glob": "^7.1.3",

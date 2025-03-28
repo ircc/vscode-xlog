@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 
 import {decodeXlogFile, isXlogFile} from '../services/xlog-decoder';
 import {getAutoOpenDecodedFile} from '../utils/config';
-import {handlePythonError} from '../utils/python';
+import {handleRxdError} from '../utils/rxd';
 
 /**
  * 解码单个Xlog文件
@@ -123,7 +123,7 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
   } catch (error) {
     if (error instanceof Error) {
       // 使用增强的错误处理
-      await handlePythonError(error);
+      await handleRxdError(error);
 
       // 记录详细错误信息到输出通道
       const outputChannel = vscode.window.createOutputChannel('Xlog 解码工具');
