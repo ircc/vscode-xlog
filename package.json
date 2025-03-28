@@ -2,7 +2,7 @@
     "name": "vscode-xlog",
     "displayName": "Xlog 解码工具",
     "description": "用于解码 Xlog 日志文件",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "publisher": "xlog-decoder",
     "repository": {
         "type": "git",

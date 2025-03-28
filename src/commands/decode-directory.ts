@@ -83,37 +83,32 @@ export async function decodeXlogDirectoryCommand(dirUri?: vscode.Uri):
             // 检查用户是否配置了自动打开文件
             const autoOpen = getAutoOpenDecodedFile();
             if (autoOpen && existingFiles.length > 0) {
-              const result = await vscode.window.showInformationMessage(
-                  '是否打开第一个解码的文件?', '是', '否');
+              try {
+                // 检查文件大小
+                const stats = fs.statSync(existingFiles[0]);
+                const fileSizeInMB = stats.size / (1024 * 1024);
 
-              if (result === '是') {
-                try {
-                  // 检查文件大小
-                  const stats = fs.statSync(existingFiles[0]);
-                  const fileSizeInMB = stats.size / (1024 * 1024);
+                // 如果文件大于50MB，直接使用vscode打开而不是通过扩展API
+                if (fileSizeInMB > 50) {
+                  outputChannel.appendLine(`文件大小超过50MB，使用VSCode原生方式打开`);
+                  // 使用vscode.open命令在VSCode中打开文件，而不是在外部应用打开
+                  await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(existingFiles[0]));
+                } else {
+                  const doc =
+                      await vscode.workspace.openTextDocument(existingFiles[0]);
+                  await vscode.window.showTextDocument(doc);
+                }
+              } catch (err) {
+                // 如果VSCode无法打开文件，提供备选方案
+                outputChannel.appendLine(`VSCode无法直接打开文件: ${err}`);
+                const action = await vscode.window.showInformationMessage(
+                    `解码成功，但VSCode无法直接打开该文件。`, '显示文件位置',
+                    '忽略');
 
-                  // 如果文件大于50MB，直接使用vscode打开而不是通过扩展API
-                  if (fileSizeInMB > 50) {
-                    outputChannel.appendLine(`文件大小超过50MB，使用VSCode原生方式打开`);
-                    // 使用vscode.open命令在VSCode中打开文件，而不是在外部应用打开
-                    await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(existingFiles[0]));
-                  } else {
-                    const doc =
-                        await vscode.workspace.openTextDocument(existingFiles[0]);
-                    await vscode.window.showTextDocument(doc);
-                  }
-                } catch (err) {
-                  // 如果VSCode无法打开文件，提供备选方案
-                  outputChannel.appendLine(`VSCode无法直接打开文件: ${err}`);
-                  const action = await vscode.window.showInformationMessage(
-                      `解码成功，但VSCode无法直接打开该文件。`, '显示文件位置',
-                      '忽略');
-
-                  if (action === '显示文件位置') {
-                    // 在文件资源管理器中显示文件
-                    const dirPath = path.dirname(existingFiles[0]);
-                    await vscode.env.openExternal(vscode.Uri.file(dirPath));
-                  }
+                if (action === '显示文件位置') {
+                  // 在文件资源管理器中显示文件
+                  const dirPath = path.dirname(existingFiles[0]);
+                  await vscode.env.openExternal(vscode.Uri.file(dirPath));
                 }
               }
             }

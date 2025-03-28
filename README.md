@@ -12,20 +12,11 @@
 - 支持处理超大日志文件，文件大小没有限制
 - 基于高性能Rust实现的解码器，解码速度快，支持多平台
 
-## 解码引擎
-
-此扩展使用基于Rust语言开发的rxd解码引擎，具有以下优势：
-- 比Python解码更快速（提升3-10倍）
-- 内存占用更低
-- 无需Python环境，原生支持Windows、macOS和Linux
-- 同时支持Intel和Apple Silicon芯片
-
 ## 设置
 
 此扩展提供以下设置：
 
 - `vscode-xlog.rxdPath`: rxd 解码器路径。留空则使用插件自带的rxd解码器。
-- `vscode-xlog.pythonPath`: 旧版Python解释器路径（已弃用，保留向后兼容性）。
 - `vscode-xlog.autoOpenDecodedFile`: 解码完成后是否自动打开解码后的文件，默认为 true。
 
 ## 使用方法
@@ -42,7 +33,7 @@
 1. 在资源管理器中右键点击包含 .xlog 文件的目录
 2. 选择 "解码目录中的所有 Xlog 文件" 选项
 3. 等待解码完成，将显示解码成功的文件数量及耗时
-4. 可以选择打开第一个解码文件（根据文件大小选择合适的打开方式）
+4. 解码完成后将自动打开第一个解码文件
 
 ### 自动解码
 
@@ -55,14 +46,61 @@
 - Tencent Mars V3格式的xlog文件
 - 其他兼容格式
 
-## 性能对比
+## 性能测试结果
 
-rxd解码引擎与Python版本对比：
+解码引擎性能测试：
 
-| 文件大小 | Python解码耗时 | rxd解码耗时 | 性能提升 |
-|---------|--------------|-----------|--------|
-| 10MB    | ~3秒         | ~0.5秒    | 6倍    |
-| 100MB   | ~25秒        | ~4秒      | 6.25倍 |
-| 1GB     | ~4.5分钟     | ~35秒     | 7.7倍  |
+| 文件大小 | 解码耗时 |
+|---------|--------|
+| 10MB    | ~0.5秒 |
+| 100MB   | ~4秒   |
+| 1GB     | ~35秒  |
 
 *测试环境：Windows 10，Intel i7处理器，16GB内存
+
+## 开发指南
+
+### 环境准备
+
+```bash
+# 安装依赖
+npm install
+
+# 下载rxd解码器（首次运行自动执行）
+npm run download-rxd
+```
+
+### 编译与测试
+
+```bash
+# 编译TypeScript源码
+npm run compile
+
+# 监视模式编译（用于开发）
+npm run watch
+
+# 运行ESLint检查
+npm run lint
+
+# 运行测试
+npm run test
+```
+
+### 打包扩展
+
+```bash
+# 安装vsce工具
+npm install -g @vscode/vsce
+
+# 打包VSIX文件
+vsce package
+
+# 本地安装扩展进行测试
+code --install-extension vscode-xlog-1.0.0.vsix
+```
+
+## 注意事项
+
+- 首次使用时，扩展会自动下载对应平台的rxd解码器
+- 插件支持Windows和macOS平台
+- 如需自定义解码器路径，请通过设置`vscode-xlog.rxdPath`指定

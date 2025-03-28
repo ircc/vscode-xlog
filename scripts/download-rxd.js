@@ -1,6 +1,7 @@
 /**
  * 此脚本用于从GitHub下载rxd可执行文件
  * 根据不同平台下载对应的二进制文件
+ * 仅当文件不存在时才下载
  */
 
 const https = require('https');
@@ -130,6 +131,7 @@ async function downloadFile(url, destPath, maxRedirects = 5) {
 /**
  * 下载所有平台的rxd二进制文件
  * 不包括Linux版本（插件不支持Linux）
+ * 仅当文件不存在时才下载
  */
 async function downloadAllPlatforms(release) {
   const fileList = [
@@ -138,24 +140,26 @@ async function downloadAllPlatforms(release) {
     { name: 'rxd-macos-arm64', destName: 'rxd-macos-arm64' }
   ];
 
-  // 清理旧文件
-  console.log('清理旧文件...');
-  for (const fileInfo of fileList) {
+  // 检查哪些文件需要下载
+  const filesToDownload = fileList.filter(fileInfo => {
     const destPath = path.join(BIN_DIR, fileInfo.destName);
-    if (fs.existsSync(destPath)) {
-      try {
-        fs.unlinkSync(destPath);
-        console.log(`删除旧文件: ${destPath}`);
-      } catch (error) {
-        console.warn(`无法删除旧文件 ${destPath}: ${error.message}`);
-      }
+    const exists = fs.existsSync(destPath);
+    if (exists) {
+      console.log(`文件已存在，跳过下载: ${destPath}`);
+      return false;
     }
+    return true;
+  });
+
+  if (filesToDownload.length === 0) {
+    console.log('所有文件都已存在，无需下载');
+    return;
   }
 
-  // 批量下载文件
+  // 批量下载缺少的文件
   const downloadPromises = [];
 
-  for (const fileInfo of fileList) {
+  for (const fileInfo of filesToDownload) {
     const asset = release.assets.find(a => a.name === fileInfo.name);
 
     if (!asset) {
@@ -196,15 +200,34 @@ async function downloadAllPlatforms(release) {
  */
 async function main() {
   try {
-    console.log('获取最新的rxd版本...');
+    console.log('检查rxd可执行文件...');
+
+    // 首先检查是否所有文件都存在
+    const requiredFiles = [
+      'rxd-windows-x86_64.exe',
+      'rxd-macos-x86_64',
+      'rxd-macos-arm64'
+    ];
+
+    const allFilesExist = requiredFiles.every(filename => {
+      const filePath = path.join(BIN_DIR, filename);
+      return fs.existsSync(filePath);
+    });
+
+    if (allFilesExist) {
+      console.log('所有rxd可执行文件已存在，无需下载');
+      return;
+    }
+
+    console.log('发现缺少的rxd可执行文件，正在获取最新版本...');
     const release = await getLatestRelease();
 
     console.log(`找到最新版本: ${release.tag_name}`);
 
-    // 直接下载所有平台版本（不包含Linux）
+    // 下载缺少的文件
     await downloadAllPlatforms(release);
 
-    console.log('所有下载完成!');
+    console.log('所有必要的下载已完成!');
   } catch (error) {
     console.error(`错误: ${error.message}`);
     process.exit(1);
