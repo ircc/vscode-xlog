@@ -10,7 +10,7 @@ import {runRxdCommand} from '../utils/rxd';
  */
 export async function decodeXlogFile(filePath: string): Promise<string> {
   // 使用rxd命令解码单个文件
-  const output = await runRxdCommand(['extra-xlog', '-f', filePath]);
+  const output = await runRxdCommand(['extra-xlog', '--file', filePath]);
 
   // 尝试从输出中获取生成的文件路径
   // rxd的输出格式可能不同，这里假设它仍然包含类似的成功标识
@@ -29,8 +29,8 @@ export async function decodeXlogFile(filePath: string): Promise<string> {
  * @returns 解码后的文件路径列表
  */
 export async function decodeXlogDirectory(dirPath: string): Promise<string[]> {
-  // 使用rxd命令解码目录
-  const output = await runRxdCommand(['extra-xlog', '-d', dirPath]);
+  // 使用rxd命令解码目录，将dirPath作为目录参数传递
+  const output = await runRxdCommand(['extra-xlog', '--file', dirPath, '--depth', '0']);
 
   // 解析输出，收集所有解码后的文件路径
   const files: string[] = [];

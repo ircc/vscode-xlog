@@ -4,10 +4,10 @@
  */
 
 const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
 
 // GitHub发布版本URL
 const GITHUB_REPO = 'ircc/rxd';
@@ -61,40 +61,134 @@ async function getLatestRelease() {
 }
 
 /**
- * 下载文件
+ * 处理HTTP重定向并下载文件
  */
-async function downloadFile(url, destPath) {
+async function downloadFile(url, destPath, maxRedirects = 5) {
   return new Promise((resolve, reject) => {
-    const options = {
-      headers: { 'User-Agent': USER_AGENT }
+    const makeRequest = (currentUrl, redirectCount) => {
+      // 解析URL以确定使用http还是https
+      const isHttps = currentUrl.startsWith('https:');
+      const requester = isHttps ? https : http;
+
+      const options = {
+        headers: { 'User-Agent': USER_AGENT },
+        followRedirect: false // 手动处理重定向
+      };
+
+      console.log(`尝试下载: ${currentUrl}`);
+
+      const req = requester.get(currentUrl, options, (res) => {
+        // 处理重定向
+        if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) {
+          if (redirectCount >= maxRedirects) {
+            reject(new Error(`重定向次数过多 (${redirectCount})`));
+            return;
+          }
+
+          const location = res.headers.location;
+          if (!location) {
+            reject(new Error('重定向缺少Location头'));
+            return;
+          }
+
+          console.log(`重定向到: ${location}`);
+          makeRequest(location, redirectCount + 1);
+          return;
+        }
+
+        if (res.statusCode !== 200) {
+          reject(new Error(`下载失败: ${res.statusCode}`));
+          return;
+        }
+
+        const file = fs.createWriteStream(destPath);
+        res.pipe(file);
+
+        file.on('finish', () => {
+          file.close();
+          resolve();
+        });
+
+        file.on('error', (error) => {
+          fs.unlinkSync(destPath);
+          reject(error);
+        });
+      });
+
+      req.on('error', (error) => {
+        reject(new Error(`下载错误: ${error.message}`));
+      });
+
+      req.end();
     };
 
-    const req = https.get(url, options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`下载失败: ${res.statusCode}`));
-        return;
-      }
-
-      const file = fs.createWriteStream(destPath);
-      res.pipe(file);
-
-      file.on('finish', () => {
-        file.close();
-        resolve();
-      });
-
-      file.on('error', (error) => {
-        fs.unlinkSync(destPath);
-        reject(error);
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(new Error(`下载错误: ${error.message}`));
-    });
-
-    req.end();
+    // 开始第一次请求
+    makeRequest(url, 0);
   });
+}
+
+/**
+ * 下载所有平台的rxd二进制文件
+ * 不包括Linux版本（插件不支持Linux）
+ */
+async function downloadAllPlatforms(release) {
+  const fileList = [
+    { name: 'rxd-windows-x86_64.exe', destName: 'rxd-windows-x86_64.exe' },
+    { name: 'rxd-macos-x86_64', destName: 'rxd-macos-x86_64' },
+    { name: 'rxd-macos-arm64', destName: 'rxd-macos-arm64' }
+  ];
+
+  // 清理旧文件
+  console.log('清理旧文件...');
+  for (const fileInfo of fileList) {
+    const destPath = path.join(BIN_DIR, fileInfo.destName);
+    if (fs.existsSync(destPath)) {
+      try {
+        fs.unlinkSync(destPath);
+        console.log(`删除旧文件: ${destPath}`);
+      } catch (error) {
+        console.warn(`无法删除旧文件 ${destPath}: ${error.message}`);
+      }
+    }
+  }
+
+  // 批量下载文件
+  const downloadPromises = [];
+
+  for (const fileInfo of fileList) {
+    const asset = release.assets.find(a => a.name === fileInfo.name);
+
+    if (!asset) {
+      console.warn(`警告: 找不到资源 ${fileInfo.name}`);
+      continue;
+    }
+
+    const destPath = path.join(BIN_DIR, fileInfo.destName);
+    console.log(`下载 ${fileInfo.name} 到 ${destPath}`);
+
+    const promise = downloadFile(asset.browser_download_url, destPath)
+      .then(() => {
+        console.log(`下载 ${fileInfo.name} 完成`);
+
+        // 设置可执行权限（非Windows平台）
+        if (fileInfo.name.indexOf('windows') === -1) {
+          try {
+            fs.chmodSync(destPath, '755');
+            console.log(`已设置 ${destPath} 为可执行`);
+          } catch (error) {
+            console.warn(`无法设置执行权限: ${error.message}`);
+          }
+        }
+      })
+      .catch(error => {
+        console.error(`下载 ${fileInfo.name} 失败: ${error.message}`);
+      });
+
+    downloadPromises.push(promise);
+  }
+
+  // 等待所有下载完成
+  await Promise.all(downloadPromises);
 }
 
 /**
@@ -107,57 +201,10 @@ async function main() {
 
     console.log(`找到最新版本: ${release.tag_name}`);
 
-    const platform = os.platform();
-    const arch = os.arch();
+    // 直接下载所有平台版本（不包含Linux）
+    await downloadAllPlatforms(release);
 
-    // 确定需要下载的文件
-    const filesToDownload = [];
-
-    // 为当前平台下载
-    if (platform === 'win32') {
-      filesToDownload.push({
-        name: 'rxd-windows-x86_64.exe',
-        destName: 'rxd-windows-x86_64.exe'
-      });
-    } else if (platform === 'darwin') {
-      filesToDownload.push({
-        name: 'rxd-macos-x86_64',
-        destName: 'rxd-macos-x86_64'
-      });
-      filesToDownload.push({
-        name: 'rxd-macos-arm64',
-        destName: 'rxd-macos-arm64'
-      });
-    } else if (platform === 'linux') {
-      filesToDownload.push({
-        name: 'rxd-linux-x86_64',
-        destName: 'rxd-linux-x86_64'
-      });
-    }
-
-    // 从release assets中找到匹配的下载文件
-    for (const fileInfo of filesToDownload) {
-      const asset = release.assets.find(a => a.name === fileInfo.name);
-
-      if (!asset) {
-        console.warn(`警告: 找不到资源 ${fileInfo.name}`);
-        continue;
-      }
-
-      const destPath = path.join(BIN_DIR, fileInfo.destName);
-      console.log(`下载 ${asset.browser_download_url} 到 ${destPath}`);
-
-      await downloadFile(asset.browser_download_url, destPath);
-      console.log(`下载 ${fileInfo.name} 完成`);
-
-      // 设置可执行权限 (非Windows平台)
-      if (platform !== 'win32') {
-        fs.chmodSync(destPath, '755');
-        console.log(`已设置 ${destPath} 为可执行`);
-      }
-    }
-
-    console.log('下载完成!');
+    console.log('所有下载完成!');
   } catch (error) {
     console.error(`错误: ${error.message}`);
     process.exit(1);

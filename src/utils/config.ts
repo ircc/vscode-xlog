@@ -9,14 +9,6 @@ export function getConfig() {
 }
 
 /**
- * 获取Python路径配置
- * @returns 配置的Python路径或undefined
- */
-export function getPythonPath(): string|undefined {
-  return getConfig().get<string>('pythonPath');
-}
-
-/**
  * 获取rxd路径配置
  * @returns 配置的rxd可执行文件路径或undefined
  */

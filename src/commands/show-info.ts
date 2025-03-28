@@ -1,33 +1,49 @@
 import * as os from 'os';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
 
-import {getPythonPath} from '../utils/config';
-import {checkPythonVersion, getPythonCommand} from '../utils/python';
+import {getRxdPath} from '../utils/config';
+import {getRxdCommand} from '../utils/rxd';
 
 /**
- * 显示插件信息和Python配置
+ * 显示插件信息和解码器配置
  */
 export async function showXlogDecodeInfoCommand(): Promise<void> {
   try {
-    const customPythonPath = getPythonPath();
-    const pythonCommand = getPythonCommand();
+    const customRxdPath = getRxdPath();
+    let rxdExePath = '';
 
-    let versionInfo = '未知';
     try {
-      versionInfo = await checkPythonVersion(pythonCommand);
+      rxdExePath = getRxdCommand();
     } catch (e) {
-      if (e instanceof Error) {
-        versionInfo = `错误: ${e.message}`;
-      } else {
-        versionInfo = '错误: 未知';
-      }
+      rxdExePath = '找不到rxd可执行文件';
+    }
+
+    // 检查rxd可执行文件是否存在
+    const rxdExists = fs.existsSync(rxdExePath);
+
+    // 获取操作系统信息
+    const platform = os.platform();
+    const arch = os.arch();
+    let platformInfo = '';
+
+    switch (platform) {
+      case 'win32':
+        platformInfo = 'Windows';
+        break;
+      case 'darwin':
+        platformInfo = `macOS (${arch === 'arm64' ? 'Apple Silicon' : 'Intel'})`;
+        break;
+      default:
+        platformInfo = `${platform} (${arch})`;
     }
 
     vscode.window.showInformationMessage(
         `Xlog解码工具信息:\n` +
-        `- 操作系统: ${os.platform()}\n` +
-        `- Python路径: ${customPythonPath || '默认'}\n` +
-        `- Python版本: ${versionInfo}`);
+        `- 操作系统: ${platformInfo}\n` +
+        `- Rxd解码器: ${rxdExists ? '已安装' : '未安装'}\n` +
+        `- 解码器路径: ${customRxdPath || '默认'}\n` +
+        `- 可执行文件: ${rxdExePath}`);
   } catch (error) {
     if (error instanceof Error) {
       vscode.window.showErrorMessage(`获取信息失败: ${error.message}`);

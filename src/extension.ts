@@ -1,101 +1,14 @@
 import * as child_process from 'child_process';
 import * as os from 'os';
+import * as path from 'path';
 import * as vscode from 'vscode';
 
-// 获取用户配置
+/**
+ * 获取扩展配置
+ * @returns 配置对象
+ */
 function getConfig() {
-  return vscode.workspace.getConfiguration('xlogDecode');
-}
-
-/**
- * 检查Python版本
- * @param pythonCommand Python命令路径
- * @returns Python版本信息
- */
-export async function checkPythonVersion(pythonCommand: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const process = child_process.spawn(
-        pythonCommand, ['-V'], {shell: os.platform() === 'win32'});
-
-    let stdout = '';
-    let stderr = '';
-
-    process.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    process.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    process.on('error', (err) => {
-      reject(new Error(`无法启动Python: ${err.message}`));
-    });
-
-    process.on('close', (code) => {
-      if (code === 0) {
-        // Python版本信息可能在stdout或stderr中
-        const output = stdout || stderr;
-        resolve(output.trim());
-      } else {
-        reject(new Error(`无法获取Python版本，返回码 ${code}`));
-      }
-    });
-  });
-}
-
-/**
- * 运行Python脚本
- * @param scriptPath 脚本路径
- * @param args 参数列表
- * @returns 脚本输出
- */
-export function runPythonScript(scriptPath: string, args: string[]): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // 获取用户配置的 Python 路径
-    const customPythonPath = getConfig().get<string>('pythonPath');
-
-    // 适应不同操作系统 Python 命令可能不同的情况
-    const isWindows = os.platform() === 'win32';
-    const defaultPythonCommand = isWindows ? 'python' : 'python3';
-
-    // 使用自定义路径或默认命令
-    const pythonCommand = customPythonPath || defaultPythonCommand;
-
-    // 在 Windows 上使用 shell 选项确保正确处理命令
-    const process = child_process.spawn(
-        pythonCommand, [scriptPath, ...args], {shell: isWindows});
-
-    let stdout = '';
-    let stderr = '';
-
-    process.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    process.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    process.on('error', (err) => {
-      // 捕获进程启动错误（如找不到 Python 命令）
-      if (customPythonPath) {
-        reject(new Error(`无法使用指定的 Python 路径 '${customPythonPath}': ${
-            err.message}。请检查设置。`));
-      } else {
-        reject(new Error(`无法启动 Python 进程: ${
-            err.message}。请在设置中指定 Python 路径。`));
-      }
-    });
-
-    process.on('close', (code) => {
-      if (code === 0) {
-        resolve(stdout);
-      } else {
-        reject(new Error(`执行失败，返回码 ${code}: ${stderr}`));
-      }
-    });
-  });
+  return vscode.workspace.getConfiguration('vscode-xlog');
 }
 
 import {decodeXlogFileCommand} from './commands/decode-file';

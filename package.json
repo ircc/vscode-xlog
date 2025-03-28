@@ -97,11 +97,6 @@
         "configuration": {
             "title": "Xlog 解码工具",
             "properties": {
-                "vscode-xlog.pythonPath": {
-                    "type": "string",
-                    "default": "",
-                    "description": "Python 解释器路径。留空则使用系统默认的 python 命令。"
-                },
                 "vscode-xlog.rxdPath": {
                     "type": "string",
                     "default": "",
