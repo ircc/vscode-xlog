@@ -112,9 +112,19 @@ export async function decodeXlogDirectoryCommand(dirUri?: vscode.Uri):
                 }
               }
             }
+
+            // 解码完成后1秒关闭输出面板
+            setTimeout(() => {
+              outputChannel.hide();
+            }, 1000);
           } else {
             outputChannel.appendLine('没有找到可以解码的Xlog文件');
             vscode.window.showInformationMessage('没有找到可以解码的Xlog文件');
+
+            // 即使没有找到文件，也在1秒后关闭输出面板
+            setTimeout(() => {
+              outputChannel.hide();
+            }, 1000);
           }
         });
   } catch (error) {

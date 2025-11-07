@@ -104,6 +104,12 @@ export async function decodeXlogFileCommand(fileUri?: vscode.Uri):
                 }
               }
               vscode.window.showInformationMessage(`解码成功: ${outputFile}`);
+
+              // 解码完成后1秒关闭输出面板
+              setTimeout(() => {
+                outputChannel.hide();
+              }, 1000);
+
               return outputFile;
             } else {
               const errorMsg = '解码完成，但找不到输出文件';
