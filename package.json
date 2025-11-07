@@ -19,6 +19,7 @@
         "onCommand:vscode-xlog.decodeFile",
         "onCommand:vscode-xlog.decodeDirectory",
         "onCommand:vscode-xlog.showInfo",
+        "onCommand:vscode-xlog.splitFile",
         "onLanguage:xlog",
         "onFileSystem:file",
         "workspaceContains:**/*.xlog",
@@ -42,6 +43,10 @@
             {
                 "command": "vscode-xlog.deleteDecodedFiles",
                 "title": "删除目录下所有已解码日志文件"
+            },
+            {
+                "command": "vscode-xlog.splitFile",
+                "title": "Split File"
             }
         ],
         "customEditors": [
@@ -74,6 +79,11 @@
                 {
                     "when": "explorerResourceIsFolder",
                     "command": "vscode-xlog.deleteDecodedFiles",
+                    "group": "navigation"
+                },
+                {
+                    "when": "resourceExtname == '.log'",
+                    "command": "vscode-xlog.splitFile",
                     "group": "navigation"
                 }
             ],
