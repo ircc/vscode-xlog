@@ -3,7 +3,7 @@
     "displayName": "Xlog 解码工具",
     "description": "用于解码 Xlog 日志文件",
     "version": "1.0.1",
-    "publisher": "xlog-decoder",
+    "publisher": "ircc",
     "repository": {
         "type": "git",
         "url": "https://github.com/ircc/vscode-xlog"
