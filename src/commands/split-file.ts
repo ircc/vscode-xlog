@@ -104,41 +104,63 @@ export async function splitFileCommand(fileUri?: vscode.Uri): Promise<void> {
               outputChannel.appendLine(`创建输出目录: ${outputDir}`);
             }
 
-            // 打开源文件进行读取
+            // 打开源文件进行读取 - 使用更大的缓冲区以提高性能
             const readStream = fs.createReadStream(filePath, {
               encoding: 'utf8',
-              highWaterMark: 64 * 1024
-            }); // 64KB 缓冲区
+              highWaterMark: 2 * 1024 * 1024  // 2MB 缓冲区，大幅提升读取速度
+            });
 
             let currentFileIndex = 1;
             let currentFileSize = 0;
             let currentWriteStream: fs.WriteStream | null = null;
             let buffer = '';
+            let pendingLines: string[] = [];  // 批量写入缓冲区
+            let pendingSize = 0;  // 缓存待写入缓冲区的大小，避免重复计算
+            const BATCH_SIZE = 100;  // 每批写入100行
+            let lastProgressReport = Date.now();
 
             // 计算预计分割文件数量
             const estimatedFiles = Math.ceil(fileSizeInBytes / splitSizeInBytes);
             outputChannel.appendLine(`预计将分割为 ${estimatedFiles} 个文件`);
 
+            // 批量写入函数
+            const flushPendingLines = () => {
+              if (pendingLines.length > 0 && currentWriteStream) {
+                const batch = pendingLines.join('');
+                currentWriteStream.write(batch);
+                currentFileSize += Buffer.byteLength(batch, 'utf8');
+                pendingLines = [];
+                pendingSize = 0;
+              }
+            };
+
             return new Promise<void>((resolve, reject) => {
               readStream.on('data', (chunk: string) => {
                 buffer += chunk;
 
-                // 处理缓冲区，按行分割
+                // 处理缓冲区，按行分割 - 使用更高效的方法
                 let newlineIndex = buffer.indexOf('\n');
                 while (newlineIndex !== -1) {
                   const line = buffer.substring(0, newlineIndex + 1);
                   buffer = buffer.substring(newlineIndex + 1);
 
-                  // 如果当前文件已满，关闭并创建新文件
+                  // 检查是否需要切换文件（考虑待写入缓冲区的大小）
+                  const lineSize = Buffer.byteLength(line, 'utf8');
                   if (currentWriteStream &&
-                      currentFileSize + Buffer.byteLength(line, 'utf8') >
-                          splitSizeInBytes) {
+                      currentFileSize + pendingSize + lineSize > splitSizeInBytes) {
+                    // 先刷新待写入的行
+                    flushPendingLines();
                     currentWriteStream.end();
                     currentWriteStream = null;
                     currentFileIndex++;
                     currentFileSize = 0;
-                    outputChannel.appendLine(
-                        `完成文件 ${currentFileIndex - 1}/${estimatedFiles}`);
+                    // 减少输出频率，只在每完成一个文件时输出
+                    const now = Date.now();
+                    if (now - lastProgressReport > 1000) {  // 至少间隔1秒
+                      outputChannel.appendLine(
+                          `完成文件 ${currentFileIndex - 1}/${estimatedFiles}`);
+                      lastProgressReport = now;
+                    }
                     progress.report({
                       increment: 100 / estimatedFiles,
                       message: `正在处理第 ${currentFileIndex} 个文件...`
@@ -150,34 +172,49 @@ export async function splitFileCommand(fileUri?: vscode.Uri): Promise<void> {
                     const outputFileName = `${fileName}_${currentFileIndex}.log`;
                     const outputFilePath = path.join(outputDir, outputFileName);
                     currentWriteStream = fs.createWriteStream(outputFilePath, {
-                      encoding: 'utf8'
+                      encoding: 'utf8',
+                      highWaterMark: 2 * 1024 * 1024  // 2MB 写入缓冲区
                     });
-                    outputChannel.appendLine(
-                        `创建分割文件: ${outputFileName}`);
+                    // 只在创建第一个文件时输出
+                    if (currentFileIndex === 1) {
+                      outputChannel.appendLine(
+                          `创建分割文件: ${outputFileName}`);
+                    }
                   }
 
-                  // 写入当前行
-                  currentWriteStream.write(line);
-                  currentFileSize += Buffer.byteLength(line, 'utf8');
+                  // 添加到批量写入缓冲区
+                  pendingLines.push(line);
+                  pendingSize += lineSize;  // 更新缓存的大小
+
+                  // 当缓冲区达到批量大小时，批量写入
+                  if (pendingLines.length >= BATCH_SIZE) {
+                    flushPendingLines();
+                  }
+
                   newlineIndex = buffer.indexOf('\n');
                 }
               });
 
               readStream.on('end', () => {
-                // 写入剩余的缓冲区内容
+                // 处理剩余的缓冲区内容
                 if (buffer.length > 0) {
                   if (!currentWriteStream) {
                     const outputFileName = `${fileName}_${currentFileIndex}.log`;
                     const outputFilePath = path.join(outputDir, outputFileName);
                     currentWriteStream = fs.createWriteStream(outputFilePath, {
-                      encoding: 'utf8'
+                      encoding: 'utf8',
+                      highWaterMark: 2 * 1024 * 1024
                     });
-                    outputChannel.appendLine(
-                        `创建分割文件: ${outputFileName}`);
                   }
-                  currentWriteStream.write(buffer);
+                  // 将剩余内容添加到批量缓冲区
+                  const remainingSize = Buffer.byteLength(buffer, 'utf8');
+                  pendingLines.push(buffer);
+                  pendingSize += remainingSize;
                   buffer = '';
                 }
+
+                // 刷新所有待写入的行
+                flushPendingLines();
 
                 // 关闭最后一个文件
                 if (currentWriteStream) {
