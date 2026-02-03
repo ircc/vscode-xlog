@@ -45,12 +45,12 @@ jobs:
         id: package_version  # 设置步骤ID，用于后续引用
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      # 第7步：打包VSCode扩展
+      # 第7步：打包VSCode扩展（会先输出 rxd 版本号）
       - name: Package Extension
         id: package-extension  # 设置步骤ID，用于后续引用
         run: |
           npm install -g @vscode/vsce  # 安装vsce工具
-          vsce package                 # 打包扩展为.vsix文件
+          npm run package              # 输出 rxd 版本并打包扩展为.vsix文件
           echo "vsix_path=$(ls *.vsix)" >> $GITHUB_OUTPUT  # 记录.vsix文件路径
           echo "vsix_name=$(ls *.vsix)" >> $GITHUB_OUTPUT  # 记录.vsix文件名
 

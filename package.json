@@ -2,7 +2,7 @@
     "name": "vscode-xlog",
     "displayName": "Xlog 解码工具",
     "description": "用于解码 Xlog 日志文件",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "publisher": "ircc",
     "repository": {
         "type": "git",
@@ -121,12 +121,14 @@
         }
     },
     "scripts": {
-        "compile": "tsc -p ./",
+        "compile": "node scripts/print-rxd-version.js && tsc -p ./",
         "lint": "eslint src --ext ts || true",
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
         "test": "node ./out/test/runTest.js",
         "download-rxd": "node scripts/download-rxd.js",
+        "print-rxd-version": "node scripts/print-rxd-version.js",
+        "package": "node scripts/print-rxd-version.js && vsce package",
         "postinstall": "npm run download-rxd"
     },
     "devDependencies": {

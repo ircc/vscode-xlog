@@ -115,7 +115,7 @@ npm install -g @vscode/vsce
 vsce package
 
 # 本地安装扩展进行测试
-code --install-extension vscode-xlog-1.0.1.vsix
+code --install-extension vscode-xlog-1.0.2.vsix
 ```
 
 ## 注意事项

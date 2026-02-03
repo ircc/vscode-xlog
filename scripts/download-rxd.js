@@ -17,10 +17,29 @@ const USER_AGENT = 'vscode-xlog-extension';
 
 // 输出目录
 const BIN_DIR = path.join(__dirname, '..', 'resources', 'bin');
+// 版本号记录文件（供编译/打包时读取）
+const VERSION_FILE = path.join(BIN_DIR, 'rxd-version.txt');
 
 // 确保目标目录存在
 if (!fs.existsSync(BIN_DIR)) {
   fs.mkdirSync(BIN_DIR, { recursive: true });
+}
+
+/**
+ * 写入并打印 rxd 版本号
+ */
+function writeAndPrintRxdVersion(tagName) {
+  const version = tagName || '';
+  try {
+    fs.writeFileSync(VERSION_FILE, version, 'utf8');
+  } catch (e) {
+    console.warn(`无法写入版本文件: ${e.message}`);
+  }
+  console.log('');
+  console.log('========== rxd 解码器版本 ==========');
+  console.log(`  rxd 版本: ${version || '未知'}`);
+  console.log('=====================================');
+  console.log('');
 }
 
 /**
@@ -216,13 +235,35 @@ async function main() {
 
     if (allFilesExist) {
       console.log('所有rxd可执行文件已存在，无需下载');
+      let savedVersion = '';
+      if (fs.existsSync(VERSION_FILE)) {
+        try {
+          savedVersion = fs.readFileSync(VERSION_FILE, 'utf8').trim();
+        } catch (e) {
+          // 忽略
+        }
+      }
+      // 若版本文件不存在，拉取一次最新版本并写入，便于后续编译/打包时显示
+      if (!savedVersion) {
+        console.log('正在获取 rxd 最新版本号并写入...');
+        try {
+          const release = await getLatestRelease();
+          savedVersion = release.tag_name || '';
+          writeAndPrintRxdVersion(savedVersion);
+        } catch (e) {
+          console.warn(`获取版本失败: ${e.message}，将显示为未知`);
+          writeAndPrintRxdVersion('未知（获取版本失败）');
+        }
+      } else {
+        writeAndPrintRxdVersion(savedVersion);
+      }
       return;
     }
 
     console.log('发现缺少的rxd可执行文件，正在获取最新版本...');
     const release = await getLatestRelease();
 
-    console.log(`找到最新版本: ${release.tag_name}`);
+    writeAndPrintRxdVersion(release.tag_name);
 
     // 下载缺少的文件
     await downloadAllPlatforms(release);
